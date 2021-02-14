@@ -11,12 +11,13 @@ import (
 )
 
 type Configuration struct {
-	OwnerName   string
-	RepoName    string
-	ReleaseTag  string
-	AssetPath   string
-	AssetName   string
-	GithubToken string
+	OwnerName     string
+	RepoName      string
+	ReleaseTag    string
+	AssetPath     string
+	AssetName     string
+	CreateRelease bool
+	GithubToken   string
 }
 
 func main() {
@@ -54,6 +55,11 @@ func main() {
 				Required: false,
 				Usage:    "Name to the asset to upload, if not set uses name from path",
 			},
+			&cli.BoolFlag{
+				Name:     "create-release",
+				Required: false,
+				Usage:    "Create release from the given tag if it does not exist already",
+			},
 		},
 		Action: func(context *cli.Context) error {
 
@@ -79,13 +85,18 @@ func main() {
 					return errors.New("GITHUB_TOKEN is empty. Please set and retry")
 				}
 
+				if err != nil {
+					return err
+				}
+
 				configuration := Configuration{
-					OwnerName:   context.String("owner"),
-					RepoName:    context.String("repo"),
-					ReleaseTag:  context.String("release-tag"),
-					AssetPath:   assetPath,
-					AssetName:   assetName,
-					GithubToken: githubToken,
+					OwnerName:     context.String("owner"),
+					RepoName:      context.String("repo"),
+					ReleaseTag:    context.String("release-tag"),
+					AssetPath:     assetPath,
+					AssetName:     assetName,
+					CreateRelease: context.Bool("create-release"),
+					GithubToken:   githubToken,
 				}
 
 				err = CheckAndUpload(&configuration)
@@ -120,9 +131,10 @@ func CheckAndUpload(configuration *Configuration) error {
 
 	releases, _, err := client.Repositories.ListReleases(ctx, configuration.OwnerName, configuration.RepoName, nil)
 	if err != nil {
-		log.Fatal("No releases found!")
-		return err
-
+		if !configuration.CreateRelease {
+			log.Fatal("No releases found!")
+			return err
+		}
 	}
 
 	var requiredRelease *github.RepositoryRelease
@@ -136,32 +148,44 @@ func CheckAndUpload(configuration *Configuration) error {
 	}
 
 	if !found {
-		return errors.New("could not find a release with the given info")
-	} else {
-
-		uploadOptions := github.UploadOptions{
-			Name: configuration.AssetName,
-		}
-
-		file, err := os.Open(configuration.AssetPath)
-		if err != nil {
-			log.Fatal("Could not open the given file path")
-			return err
-		}
-
-		uploadedAsset, response, err := client.Repositories.UploadReleaseAsset(ctx, configuration.OwnerName, configuration.RepoName, *requiredRelease.ID, &uploadOptions, file)
-		if err != nil {
-			log.Error("Could not upload asset!")
-			return err
+		if configuration.CreateRelease {
+			log.Infof("Could not find release for tag %s at %s/%s", configuration.ReleaseTag, configuration.OwnerName, configuration.RepoName)
+			log.Info("Creating new release...")
+			release := github.RepositoryRelease{
+				TagName: &configuration.ReleaseTag,
+				Name:    &configuration.ReleaseTag,
+			}
+			newRelease, _, err := client.Repositories.CreateRelease(ctx, configuration.OwnerName, configuration.RepoName, &release)
+			if err != nil {
+				return err
+			}
+			requiredRelease = newRelease
 		} else {
-			log.Info("Successfully uploaded asset, details:")
-			log.Info("Asset ID: ", uploadedAsset.GetID())
-			log.Info("Asset Name: ", uploadedAsset.GetName())
-			log.Info("Asset URL: ", uploadedAsset.GetURL())
-			log.Info("Response Status: ", response.Status)
-			log.Info("Response Status Code: ", response.StatusCode)
-
+			return errors.New("could not find a release with the given info")
 		}
+	}
+
+	uploadOptions := github.UploadOptions{
+		Name: configuration.AssetName,
+	}
+
+	file, err := os.Open(configuration.AssetPath)
+	if err != nil {
+		log.Fatal("Could not open the given file path")
+		return err
+	}
+
+	uploadedAsset, response, err := client.Repositories.UploadReleaseAsset(ctx, configuration.OwnerName, configuration.RepoName, *requiredRelease.ID, &uploadOptions, file)
+	if err != nil {
+		log.Error("Could not upload asset!")
+		return err
+	} else {
+		log.Info("Successfully uploaded asset, details:")
+		log.Info("Asset ID: ", uploadedAsset.GetID())
+		log.Info("Asset Name: ", uploadedAsset.GetName())
+		log.Info("Asset URL: ", uploadedAsset.GetURL())
+		log.Info("Response Status: ", response.Status)
+		log.Info("Response Status Code: ", response.StatusCode)
 
 	}
 
