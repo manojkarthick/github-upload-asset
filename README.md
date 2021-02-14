@@ -1,5 +1,7 @@
 # github-upload-asset
-CLI tool to upload an asset to the given GitHub release
+
+* CLI tool to upload an asset to the given GitHub release
+* You can download the release binaries for Linux/macOS/Windows [here](https://github.com/manojkarthick/github-upload-asset/releases/)
 
 ```
 ❯ github-upload-asset --help
