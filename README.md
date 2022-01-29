@@ -3,7 +3,17 @@
 * CLI tool to upload an asset to the given GitHub release
 * You can download the release binaries for Linux/macOS/Windows [here](https://github.com/manojkarthick/github-upload-asset/releases/)
 * Create a personal access token and set it as an environment variable (`GITHUB_TOKEN=<your-personal-access-token>`) before running.
-* You can also install it from Homebrew by running: `brew tap manojkarthick/github-upload-asset && brew install github-upload-asset`
+
+## Installation
+
+You can also install it from Homebrew by running:
+
+```
+brew tap manojkarthick/tap
+brew install github-upload-asset
+```
+
+## Usage
 
 ```
 ❯ github-upload-asset --help
